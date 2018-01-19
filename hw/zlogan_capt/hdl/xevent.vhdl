@@ -23,6 +23,8 @@ end xevent;
 architecture rtl of xevent is
   signal x: std_logic;
   signal y: std_logic_vector (n_resync+1 downto 0);
+  attribute REGISTER_DUPLICATION : string;
+  attribute REGISTER_DUPLICATION of y : signal is "NO";
 begin
   y(y'high) <= x;
   q <= y(1) and not y(0);
