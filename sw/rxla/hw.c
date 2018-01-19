@@ -77,7 +77,7 @@ void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
     }
     *phys_addr = read_uint("/sys/class/udmabuf/udmabuf0/phys_addr");
     *size = read_uint("/sys/class/udmabuf/udmabuf0/size");
-    void *map = mmap("/dev/udmabuf0", *size, PROT_READ, MAP_SHARED, fd, 0);
+    void *map = mmap(NULL, *size, PROT_READ, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         perror("mmap");
         *phys_addr = 0xFFFFFFFF;

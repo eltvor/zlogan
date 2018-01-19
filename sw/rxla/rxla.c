@@ -32,16 +32,19 @@
 static unsigned f_s = 250000000;
 
 // TODO: detect the actual length
-#define DMA_LENGTH_BITS    24
+// NOTE: if the dump ends with a bunch of zeros (or some garbage), you got it wrong
+#define DMA_LENGTH_BITS    23
 
 unsigned WORD_SIZE = 0; // detected at runtime
 
-#define DMA_MAX_LEN_W     ((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1)
+// NOTE: the DMA core has apparently some address alignment limitation (cache line?)
+#define DMA_MAX_LEN_W     (((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1) & ~0xFF)
 #define DMA_MAX_LEN_B     (DMA_MAX_LEN_W*WORD_SIZE)
 /*
 #define DMA_MAX_LEN_W     ((1U << (DMA_LENGTH_BITS-1))/WORD_SIZE)
 #define DMA_MAX_LEN_B     (DMA_MAX_LEN_W*WORD_SIZE)
 */
+
 static struct {
   long n;
   int do_fwrite;
@@ -100,22 +103,21 @@ static void dump_regs() {
 }
 
 void *dma_thread(void *arg) {
-  uint32_t *p;
-  unsigned long len;
-  uint32_t mem_addrp = DMA_ADDR;
-  p = mm_dma_data;
+  (void) arg;
 
+  uint32_t mem_addrp = DMA_ADDR;
+  size_t block_len_w = DMA_MAX_LEN_W;
+  size_t total_len_w = dma_setup.n;
+
+  if (total_len_w > DMA_SIZE/WORD_SIZE) {
+    log_wr(L_WARN, "small DMA buffer -> length truncated to %lu B", DMA_SIZE);
+    total_len_w = DMA_SIZE/WORD_SIZE;
+  }
   set_rt_prio_self();
-  len = dma_setup.n;
-  fprintf(stderr, "block_len=%lu\n", len*WORD_SIZE);
-  
-  unsigned len_k, len1 = len & DMA_MAX_LEN_W;
-  if (len1 == 0)
-    len1 = DMA_MAX_LEN_W;
-  len_k = len1;
-  
+  log_wr(L_INFO, "total_len=%lu, block_len=%lu\n", total_len_w*WORD_SIZE, block_len_w*WORD_SIZE);
+
   /* DMA reset */
-  unsigned tmp;
+  uint32_t tmp;
   tmp = mm_ctrl[ZLOGAN_REG_CR];
   tmp |= ZLOGAN_CR_FIFO_RST | ZLOGAN_CR_DMAFSM_RST;
   // reset rxdma core + fifo
@@ -134,26 +136,20 @@ void *dma_thread(void *arg) {
   log_wr(L_INFO, "DMA reset clear");
 
   // TODO: trigger after setting the DMA, not before ... ?
-  // TODO: multi-step reading does not work ...
-  int first = 1;
-  while (len >= len_k) {
-      log_wr(L_INFO, "read loop");
-      if (first) {
-          rx_dma_trigger(len_k-1); // fill length & test flag
-          first = 0;
-      } else {
-          rx_dma_trigger(len_k-1); // fill length & test flag
-      }
+  while (total_len_w) {
+    if (total_len_w < block_len_w)
+      block_len_w = total_len_w;
+    log_wr(L_INFO, "DMA read loop: %lu bytes", block_len_w*WORD_SIZE);
+    rx_dma_trigger(block_len_w-1); // fill length & test flag
     /* prepare DMA engine */
     dma_s2mm_reg_wr(XILINX_DMA_REG_DMACR, XILINX_DMA_DMACR_RUNSTOP);  /* S2MM_DMACR.RS = 1 */
     dma_s2mm_reg_wr(XILINX_DMA_REG_ADDR, mem_addrp); /* S2MM_DA = addr. */
     dma_s2mm_reg_wr(XILINX_DMA_REG_ADDR_MSB, 0); /* S2MM_DA_MSB = 0. */
-    dma_s2mm_reg_wr(XILINX_DMA_REG_LENGTH, len_k * WORD_SIZE); /* S2MM_LENGTH = len [B] */
+    dma_s2mm_reg_wr(XILINX_DMA_REG_LENGTH, block_len_w * WORD_SIZE); /* S2MM_LENGTH = len [B] */
     //log_wr(L_DEBUG, "DMA: CR=0x%08x, ADDR=%");
 
-    len -= len_k;
-    len_k = DMA_MAX_LEN_W;
-    mem_addrp += DMA_MAX_LEN_B;
+    total_len_w -= block_len_w;
+    mem_addrp += block_len_w*WORD_SIZE;
 
     log_wr(L_INFO, "waiting for DMA ready");
     while (1) {
@@ -177,7 +173,7 @@ void *dma_thread(void *arg) {
       hdr.word_size = WORD_SIZE;
       hdr.burst_size_w = htole32(dma_setup.n);
       fwrite(&hdr, 1, sizeof(zlo_header_t), dma_setup.out);
-      fwrite(p, WORD_SIZE, (mem_addrp-DMA_ADDR)/WORD_SIZE, dma_setup.out);
+      fwrite((const void *)mm_dma_data, WORD_SIZE, (mem_addrp-DMA_ADDR)/WORD_SIZE, dma_setup.out);
   }
   return NULL;
 }
