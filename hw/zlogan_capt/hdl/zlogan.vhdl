@@ -103,6 +103,7 @@ architecture rtl of zlogan is
   signal prev_inp: std_logic_vector (inp'range);
   signal prev_en: std_logic;
 begin
+  assert (b_out*7 - 3 > n_inp) report "Too many input ports!" severity failure;
   --
   -- i/o, event detection
   --

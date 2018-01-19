@@ -16,8 +16,8 @@ entity zlogan_capt_rxdma is
   );
   port (
     aresetn, clock: in std_logic;
-    data_in: in std_logic_vector (31 downto 0);
-    time_in: in std_logic_vector (31 downto 0);
+    data_in: in std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
+    time_in: in std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
     valid: in std_logic;
     ready: out std_logic;
     xrun_flag: out std_logic;
@@ -28,9 +28,9 @@ entity zlogan_capt_rxdma is
     --
     S2MM_tvalid : out std_logic;
     S2MM_tready: in std_logic;
-    S2MM_tdata: out std_logic_vector (31 downto 0);
+    S2MM_tdata: out std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
     S2MM_tlast: out std_logic;
-    S2MM_tstrb: out std_logic_vector(3 downto 0)
+    S2MM_tstrb: out std_logic_vector(S2MM_TDATA_WIDTH/8-1 downto 0)
     );
 end zlogan_capt_rxdma;
 
@@ -46,7 +46,7 @@ architecture rtl of zlogan_capt_rxdma is
   constant cnt_hi_zeros: unsigned (count_hi'range) := (others => '0');
   signal ready_buf, xrun_flag_rg, dma_valid,
     nx_xrun_flag, nx_dma_valid: std_logic;
-  signal dma_data, nx_dma_data: std_logic_vector (31 downto 0);
+  signal dma_data, nx_dma_data: std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
 begin
   ready <= ready_buf;
   xrun_flag <= xrun_flag_rg;

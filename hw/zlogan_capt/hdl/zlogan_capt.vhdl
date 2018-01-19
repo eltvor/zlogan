@@ -109,13 +109,13 @@ architecture arch_imp of zlogan_capt_v1_0 is
 
   component zlogan_capt_rxdma is
     generic (
-      C_M_AXIS_TDATA_WIDTH  : integer  := 32;
-      C_M_START_COUNT  : integer  := 32
+      S2MM_TDATA_WIDTH  : integer  := 32;
+      S2MM_COUNT  : integer  := 32
     );
     port (
       aresetn, clock: in std_logic;
-      data_in: in std_logic_vector (31 downto 0);
-      time_in: in std_logic_vector (31 downto 0);
+      data_in: in std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
+      time_in: in std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
       valid: in std_logic;
       ready: out std_logic;
       xrun_flag: out std_logic;
@@ -126,9 +126,9 @@ architecture arch_imp of zlogan_capt_v1_0 is
       --
       S2MM_tvalid : out std_logic;
       S2MM_tready: in std_logic;
-      S2MM_tdata: out std_logic_vector (31 downto 0);
-      S2MM_tstrb: out std_logic_vector (3 downto 0);
-      S2MM_tlast: out std_logic
+      S2MM_tdata: out std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
+      S2MM_tlast: out std_logic;
+      S2MM_tstrb: out std_logic_vector(S2MM_TDATA_WIDTH/8-1 downto 0)
     );
   end component zlogan_capt_rxdma;
 
@@ -145,7 +145,7 @@ architecture arch_imp of zlogan_capt_v1_0 is
       out_data: out std_logic_vector (b_out*8-1 downto 0));
   end component zlogan;
 
-  signal dma_data, dma_tstamp: std_logic_vector (31 downto 0);
+  signal dma_data, dma_tstamp: std_logic_vector (C_M00_AXIS_TDATA_WIDTH-1 downto 0);
   signal dma_data_valid, dma_trig, dma_rst, dma_xrun, fifo_reset_n: std_logic;
   signal dma_len: unsigned (29 downto 0);
   signal state_mon: std_logic_vector (2 downto 0);
@@ -185,8 +185,8 @@ zlogan_capt_s00_axi_inst : zlogan_capt_s00_axi
 -- Instantiation of Axi Bus Interface M00_AXIS
   zlogan_capt_rxdma_inst : zlogan_capt_rxdma
   generic map (
-    C_M_AXIS_TDATA_WIDTH  => C_M00_AXIS_TDATA_WIDTH,
-    C_M_START_COUNT  => C_M00_AXIS_START_COUNT
+    S2MM_TDATA_WIDTH  => C_M00_AXIS_TDATA_WIDTH,
+    S2MM_COUNT  => C_M00_AXIS_START_COUNT
   )
   port map (
     aresetn => m00_axis_aresetn,
