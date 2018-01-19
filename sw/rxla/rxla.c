@@ -93,7 +93,7 @@ int set_rt_prio_self();
 static void dump_regs() {
     char buf[512];
     char *p = buf;
-    const char *names[] = {"CR", "LEN", "SR", "FIFO_DATA_COUNT", "FIFO_RD_DATA_COUNT", "FIFO_WR_DATA_COUNT", "INP", "SHADOW_LEN"};
+    const char *names[] = {"CR", "SR", "LEN", "INP", "ID", "FIFO_DATA_COUNT", "FIFO_RD_DATA_COUNT", "FIFO_WR_DATA_COUNT", "SHADOW_LEN"};
     for (unsigned i=0; i<ARRAY_SIZE(names); ++i) {
         __mb();
         unsigned r = mm_ctrl[i];
