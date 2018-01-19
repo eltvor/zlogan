@@ -7,9 +7,11 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+#include "log.h"
 #include "hw.h"
 
 uint32_t *mm_data, *mm_ctrl, *mm_dma_ctl, *mm_dma_data, *mm_dma_code;
+uint32_t DMA_ADDR, DMA_SIZE;
 
 static char *memdev = "/dev/mem";
 static int mem_fd = -1;
@@ -47,23 +49,58 @@ void *mem_map(unsigned long mem_start, unsigned long mem_length) {
   return mem;
 }
 
+uint32_t read_uint(const char *path) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror(path);
+        exit(1);
+    }
+    char buf[32];
+    int len = read(fd, buf, sizeof(buf));
+    close(fd);
+    if (len < 0) {
+        perror(path);
+        exit(1);
+    }
+    char *ep = buf+len;
+    uint32_t res = strtoul(buf, &ep, 0);
+    log_wr(L_DEBUG, "read 0x%08x from %s\n", res, path);
+    return res;
+}
+
+void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
+{
+    int fd = open("/dev/udmabuf0", O_RDONLY);
+    if (fd < 0) {
+        perror("/dev/udmabuf0");
+        return NULL;
+    }
+    *phys_addr = read_uint("/sys/class/udmabuf/udmabuf0/phys_addr");
+    *size = read_uint("/sys/class/udmabuf/udmabuf0/size");
+    void *map = mmap("/dev/udmabuf0", *size, PROT_READ, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        perror("mmap");
+        *phys_addr = 0xFFFFFFFF;
+        *size = 0;
+        return NULL;
+    }
+    return map;
+}
+
 /* * */
 
 int hw_init(unsigned f_s) {
   mem_open();
-  mm_data = mem_map(DATA_ADDR, DATA_SIZE);
+  //mm_data = mem_map(DATA_ADDR, DATA_SIZE);
   mm_ctrl = mem_map(CTRL_ADDR, CTRL_SIZE);
   mm_dma_ctl = mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);
-  mm_dma_data = mem_map(DMA_ADDR, DMA_SIZE);
+  mm_dma_data = alloc_dma_buf(&DMA_ADDR, &DMA_SIZE);
 
   /* init regs */
-  mm_ctrl[1] = 0;
-  mm_ctrl[2] = 0;
-  mm_ctrl[4] = f_s-1; //187500000-1;
-  mm_ctrl[5] = 0;
-  //mm_ctrl[6] = rx.f_s/50000; //187500000/50000; /* 20us pps pulse */
+  mm_ctrl[ZLOGAN_REG_CR] = ZLOGAN_CR_LA_RST | ZLOGAN_CR_DMAFSM_RST | ZLOGAN_CR_FIFO_RST;
+  mm_ctrl[ZLOGAN_REG_LEN] = 0;
   __mb();
-  mm_ctrl[0] = 0xffff;
+  mm_ctrl[ZLOGAN_REG_CR] = 0x0; // disable
   __mb();
 
   return 0;
