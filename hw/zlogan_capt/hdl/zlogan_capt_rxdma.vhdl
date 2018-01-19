@@ -25,6 +25,7 @@ entity zlogan_capt_rxdma is
     dma_len: in unsigned (29 downto 0);
     --
     state_mon: out std_logic_vector (2 downto 0);
+    count_mon_o : out unsigned (29 downto 0);
     --
     S2MM_tvalid : out std_logic;
     S2MM_tready: in std_logic;
@@ -88,6 +89,7 @@ begin
     nx_count <= count;
     S2MM_tdata <= dma_data;
     S2MM_tstrb <= (others => '1');
+    count_mon_o <= count;
     --
     case state is
       when ST_WAIT_TRIG =>
