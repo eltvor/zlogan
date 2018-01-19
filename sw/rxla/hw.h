@@ -67,8 +67,7 @@ extern uint32_t DMA_ADDR, DMA_SIZE;
 #define ZLOGAN_ID_GET_WS(r)    (((r) >> 8) & 0xFF)
 #define ZLOGAN_ID_GET_NSIG(r)  (((r) >> 16) & 0xFF)
 
-extern uint32_t *mm_data, *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
-extern uint32_t *mm_dma_code;
+extern volatile uint32_t *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
 
 #define __mb() \
  __asm__ __volatile__("dmb": : : "memory")

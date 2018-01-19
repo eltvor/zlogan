@@ -10,10 +10,10 @@
 #include "log.h"
 #include "hw.h"
 
-uint32_t *mm_data, *mm_ctrl, *mm_dma_ctl, *mm_dma_data, *mm_dma_code;
+volatile uint32_t *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
 uint32_t DMA_ADDR, DMA_SIZE;
 
-static char *memdev = "/dev/mem";
+static const char *memdev = "/dev/mem";
 static int mem_fd = -1;
 
 static unsigned pps_phase = 0;
@@ -38,7 +38,7 @@ void *mem_map(unsigned long mem_start, unsigned long mem_length) {
 
   mm = mmap(NULL, mem_window_size, PROT_WRITE|PROT_READ,
             MAP_SHARED, mem_fd, mem_start & ~(pagesize-1));
-  mem = mm + (mem_start & (pagesize-1));
+  mem = (char*)mm + (mem_start & (pagesize-1));
 
   if (mm == MAP_FAILED) {
     perror("mmap");
@@ -91,10 +91,9 @@ void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 
 int hw_init(unsigned f_s) {
   mem_open();
-  //mm_data = mem_map(DATA_ADDR, DATA_SIZE);
-  mm_ctrl = mem_map(CTRL_ADDR, CTRL_SIZE);
-  mm_dma_ctl = mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);
-  mm_dma_data = alloc_dma_buf(&DMA_ADDR, &DMA_SIZE);
+  mm_ctrl = (volatile uint32_t *) mem_map(CTRL_ADDR, CTRL_SIZE);
+  mm_dma_ctl = (volatile uint32_t *) mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);
+  mm_dma_data = (volatile uint32_t *) alloc_dma_buf(&DMA_ADDR, &DMA_SIZE);
 
   /* init regs */
   mm_ctrl[ZLOGAN_REG_CR] = ZLOGAN_CR_LA_RST | ZLOGAN_CR_DMAFSM_RST | ZLOGAN_CR_FIFO_RST;

@@ -94,7 +94,7 @@ static void dump_regs() {
     char buf[512];
     char *p = buf;
     const char *names[] = {"CR", "LEN", "SR", "FIFO_DATA_COUNT", "FIFO_RD_DATA_COUNT", "FIFO_WR_DATA_COUNT", "INP", "SHADOW_LEN"};
-    for (int i=0; i<ARRAY_SIZE(names); ++i) {
+    for (unsigned i=0; i<ARRAY_SIZE(names); ++i) {
         __mb();
         unsigned r = mm_ctrl[i];
         p += sprintf(p, "%s%s = 0x%08x (%u)", (i==0?"":", "), names[i], r, r);

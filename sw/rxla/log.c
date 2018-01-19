@@ -18,7 +18,7 @@
 #define L_INFO  4
 #define L_DEBUG 5
 
-static char *log_label[] = {
+static const char *log_label[] = {
   "fatal",
   "error",
   "warning",
@@ -67,9 +67,9 @@ void log_wr_begin(unsigned level) {
   pthread_mutex_lock(&log_file_lock);
   for (i = 0; i < n_log_files; i++)
     fprintf(log_file[i], "%04d-%02d-%02d %02d:%02d:%02d.%06d  %s: ",
-	    1900 + tm->tm_year, 1 + tm->tm_mon, tm->tm_mday,
-	    tm->tm_hour, tm->tm_min, tm->tm_sec, (int)tv.tv_usec,
-	    log_label[level]);
+            1900 + tm->tm_year, 1 + tm->tm_mon, tm->tm_mday,
+            tm->tm_hour, tm->tm_min, tm->tm_sec, (int)tv.tv_usec,
+            log_label[level]);
 }
 
 void log_wr_end(unsigned level) {
@@ -173,7 +173,7 @@ int log_stream_delete(FILE *f) {
   for (i = 0; i < n_log_files; i++)
     if (log_file[i] == f) {
       for (i++ ; i < n_log_files; i++)
-	log_file[i-1] = log_file[i];
+        log_file[i-1] = log_file[i];
       --n_log_files;
       log_file = (FILE**)realloc(log_file, n_log_files*sizeof(FILE*));
       check(log_file);
@@ -191,7 +191,7 @@ int log_stream_delete(FILE *f) {
  * @param name base file name
  */
 FILE *log_open(char *name, char *date_fmt, char *suffix_fmt,
-	       unsigned timeout_sec)
+               unsigned timeout_sec)
 {
   char s[256], *p;
   time_t t0;
@@ -219,13 +219,13 @@ FILE *log_open(char *name, char *date_fmt, char *suffix_fmt,
       snprintf(p, max, suffix_fmt, i++);
       fd = open(s, O_CREAT | O_EXCL | O_WRONLY, 0644);
       if (fd >= 0) {
-	fprintf(stderr, "Opening exclusive log file %s\n", s);
-	FILE *f = fdopen(fd, "w");
-	return f;
+        fprintf(stderr, "Opening exclusive log file %s\n", s);
+        FILE *f = fdopen(fd, "w");
+        return f;
       }
     } while (difftime(time(NULL), t0) < timeout_sec);
     fprintf(stderr, "Failed to create unique log file within %ds\n",
-	    timeout_sec);
+            timeout_sec);
   }
 
   fprintf(stderr, "Opening log file %s\n", s);

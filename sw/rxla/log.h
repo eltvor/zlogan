@@ -18,9 +18,9 @@
 
 void log_level(unsigned level);
 void log_wr_begin(unsigned level);
-void log_wr_frag(unsigned level, const char *fmt, ...);
+void log_wr_frag(unsigned level, const char *fmt, ...) __attribute__(( format(printf, 2, 3) ));
 void log_wr_end(unsigned level);
-void log_wr(unsigned level, const char *fmt, ...);
+void log_wr(unsigned level, const char *fmt, ...) __attribute__(( format(printf, 2, 3) ));
 void log_std_error(unsigned level, char *s);
 int log_stream_add(FILE *f);
 int log_stream_delete(FILE *f);
