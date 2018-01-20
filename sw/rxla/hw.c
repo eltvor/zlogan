@@ -16,9 +16,7 @@ uint32_t DMA_ADDR, DMA_SIZE;
 static const char *memdev = "/dev/mem";
 static int mem_fd = -1;
 
-static unsigned pps_phase = 0;
-
-int mem_open() {
+static int mem_open() {
   mem_fd = open(memdev, O_RDWR|O_SYNC);
   if (mem_fd < 0) {
     perror("open memory device");
@@ -49,7 +47,7 @@ void *mem_map(unsigned long mem_start, unsigned long mem_length) {
   return mem;
 }
 
-uint32_t read_uint(const char *path) {
+static uint32_t read_uint(const char *path) {
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
         perror(path);
@@ -68,7 +66,7 @@ uint32_t read_uint(const char *path) {
     return res;
 }
 
-void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
+static void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 {
     int fd = open("/dev/udmabuf0", O_RDONLY);
     if (fd < 0) {
@@ -89,7 +87,7 @@ void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 
 /* * */
 
-int hw_init(unsigned f_s) {
+int hw_init() {
   mem_open();
   mm_ctrl = (volatile uint32_t *) mem_map(CTRL_ADDR, CTRL_SIZE);
   mm_dma_ctl = (volatile uint32_t *) mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);

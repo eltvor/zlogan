@@ -83,8 +83,7 @@ extern volatile uint32_t *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
 #define ACC_N_WORDS 8
 #endif
 
-/*int mem_open();*/
-int hw_init(unsigned f_s);
+int hw_init();
 void *mem_map(unsigned long mem_start, unsigned long mem_length);
 
 /* From linux/drivers/dma/xilinx/xilinx_dma.c */

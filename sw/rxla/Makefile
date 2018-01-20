@@ -2,7 +2,7 @@ P :=
 #CC := $(P)arm-xilinx-linux-gnueabi-gcc
 CC := $(P)arm-linux-gnueabihf-gcc
 
-CFLAGS := -O -Wall -ggdb
+CFLAGS := -O2 -Wall -Wextra -pedantic
 LIBS := -lm -lpthread
 OBJS := log.o hw.o rxla.o
 EXENAME := rxla
