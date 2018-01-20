@@ -80,12 +80,12 @@ static inline uint32_t dma_s2mm_reg_rd(unsigned reg) {
 
 static inline void rx_dma_trigger(uint32_t dma_len) {
   mm_ctrl[ZLOGAN_REG_LEN] = dma_len; // fill length & test flag
-  mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_DMAFSM_TRIG; // trigger DMA
+  mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_DMAFSM_TRIG;
   __mb();
-  mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_DMAFSM_TRIG;
-
-  // TODO: clear DMA Trig?
-  __mb();
+}
+static inline void rx_dma_untrigger() {
+    mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_DMAFSM_TRIG;
+    __mb();
 }
 
 int set_rt_prio_self();
@@ -135,12 +135,11 @@ void *dma_thread(void *arg) {
     usleep(1);
   log_wr(L_INFO, "DMA reset clear");
 
-  // TODO: trigger after setting the DMA, not before ... ?
+  rx_dma_trigger(block_len_w-1); // fill length & test flag
   while (total_len_w) {
     if (total_len_w < block_len_w)
       block_len_w = total_len_w;
     log_wr(L_INFO, "DMA read loop: %lu bytes", block_len_w*WORD_SIZE);
-    rx_dma_trigger(block_len_w-1); // fill length & test flag
     /* prepare DMA engine */
     dma_s2mm_reg_wr(XILINX_DMA_REG_DMACR, XILINX_DMA_DMACR_RUNSTOP);  /* S2MM_DMACR.RS = 1 */
     dma_s2mm_reg_wr(XILINX_DMA_REG_ADDR, mem_addrp); /* S2MM_DA = addr. */
@@ -153,18 +152,23 @@ void *dma_thread(void *arg) {
 
     log_wr(L_INFO, "waiting for DMA ready");
     while (1) {
-        unsigned sr = dma_s2mm_reg_rd(XILINX_DMA_REG_DMASR);
+        uint32_t sr = dma_s2mm_reg_rd(XILINX_DMA_REG_DMASR);
         if (sr & XILINX_DMA_DMASR_IDLE)
             break;
         else if (sr & XILINX_DMA_DMASR_HALTED) {
             log_wr(L_ERR, "DMA Halted - DMA error? (SR=0x%08x)", sr);
-            dump_regs(); // DBG
+            dump_regs();
             return NULL;
         }
-        usleep(1); // DBG
+        usleep(1);
     }
   }
+  rx_dma_untrigger();
   log_wr(L_INFO, "start=0x%08x, end=0x%08x\n", DMA_ADDR, mem_addrp);
+  tmp = mm_ctrl[ZLOGAN_REG_SR];
+  if (tmp & ZLOGAN_SR_XRUN) {
+      log_wr(L_WARN, "FIFO Overrun. Some data will be missing.");
+  }
   if (dma_setup.do_fwrite) {
       zlo_header_t hdr;
       uint32_t id = mm_ctrl[ZLOGAN_REG_ID];
