@@ -143,7 +143,7 @@ begin
     inp1_full(n) <= inp1_full(n+1) or not inp1_zero(n);
   end generate;
   -- count number of utilized bytes
-  inp1_bcnt(0) <= 0 when inp1_zero(0) = '1' else 1;
+  inp1_bcnt(0) <= 1;  -- force min length of 1 byte even in case of all 0's
   g3: for n in 1 to b_out-1 generate
     inp1_bcnt(n) <= n+1 when inp1_full(n) = '1' else inp1_bcnt(n-1);
   end generate;
