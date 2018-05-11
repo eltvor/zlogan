@@ -1,4 +1,4 @@
-P :=
+#P := /home/martin/programs/Xilinx/SDK/2017.4/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin/
 #CC := $(P)arm-xilinx-linux-gnueabi-gcc
 CC := $(P)arm-linux-gnueabihf-gcc
 

@@ -36,7 +36,7 @@
 unsigned WORD_SIZE = 0; // detected at runtime
 
 // NOTE: the DMA core has apparently some address alignment limitation (cache line?)
-#define DMA_MAX_LEN_W     (((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1) & ~0xFF)
+#define DMA_MAX_LEN_W     (((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1) & ~0xFFF)
 #define DMA_MAX_LEN_B     (DMA_MAX_LEN_W*WORD_SIZE)
 /*
 #define DMA_MAX_LEN_W     ((1U << (DMA_LENGTH_BITS-1))/WORD_SIZE)
@@ -111,6 +111,8 @@ void *dma_thread(void *arg) {
     log_wr(L_WARN, "small DMA buffer -> length truncated to %" PRIu32 " B", DMA_SIZE);
     total_len_w = DMA_SIZE/WORD_SIZE;
   }
+  if (total_len_w < block_len_w)
+      block_len_w = total_len_w;
   set_rt_prio_self();
   log_wr(L_INFO, "total_len=%" PRIu32 ", block_len=%" PRIu32 "\n", total_len_w*WORD_SIZE, block_len_w*WORD_SIZE);
 
@@ -133,10 +135,10 @@ void *dma_thread(void *arg) {
     usleep(1);
   log_wr(L_INFO, "DMA reset clear");
 
-  rx_dma_trigger(block_len_w-1); // fill length & test flag
   while (total_len_w) {
     if (total_len_w < block_len_w)
       block_len_w = total_len_w;
+    rx_dma_trigger(block_len_w-1); // fill length & test flag
     log_wr(L_INFO, "DMA read loop: %" PRIu32 " bytes", block_len_w*WORD_SIZE);
 
     /* prepare DMA engine */
@@ -176,7 +178,7 @@ void *dma_thread(void *arg) {
       hdr.word_size = WORD_SIZE;
       hdr.burst_size_w = htole32(dma_setup.n);
       fwrite(&hdr, 1, sizeof(zlo_header_t), dma_setup.out);
-      fwrite((const void *)mm_dma_data, WORD_SIZE, (mem_addrp-DMA_ADDR)/WORD_SIZE, dma_setup.out);
+      fwrite((const void *)mm_dma_data, 1, mem_addrp-DMA_ADDR, dma_setup.out);
   }
   return NULL;
 }
