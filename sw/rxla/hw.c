@@ -9,45 +9,52 @@
 
 #include "log.h"
 #include "hw.h"
+//------------------------------------------------------------------------------
 
 volatile uint32_t *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
 uint32_t DMA_ADDR, DMA_SIZE;
 
 static const char *memdev = "/dev/mem";
 static int mem_fd = -1;
+//------------------------------------------------------------------------------
 
-static int mem_open() {
-  mem_fd = open(memdev, O_RDWR|O_SYNC);
-  if (mem_fd < 0) {
-    perror("open memory device");
-    return -1;
-  }
-  return 0;
+static int mem_open()
+{
+    mem_fd = open(memdev, O_RDWR|O_SYNC);
+    if (mem_fd < 0) {
+        perror("open memory device");
+        return -1;
+    }
+    return 0;
 }
+//------------------------------------------------------------------------------
 
-void *mem_map(unsigned long mem_start, unsigned long mem_length) {
-  unsigned long pagesize, mem_window_size;
-  void *mm, *mem;
+void *mem_map(unsigned long mem_start, unsigned long mem_length)
+{
+    unsigned long pagesize, mem_window_size;
+    void *mm, *mem;
 
-  //pagesize = getpagesize();
-  pagesize = sysconf(_SC_PAGESIZE);
+    //pagesize = getpagesize();
+    pagesize = sysconf(_SC_PAGESIZE);
 
-  mem_window_size = ((mem_start & (pagesize-1)) + mem_length + pagesize-1) & ~(pagesize-1);
+    mem_window_size = ((mem_start & (pagesize-1)) + mem_length + pagesize-1) & ~(pagesize-1);
 
-  mm = mmap(NULL, mem_window_size, PROT_WRITE|PROT_READ,
-            MAP_SHARED, mem_fd, mem_start & ~(pagesize-1));
-  mem = (char*)mm + (mem_start & (pagesize-1));
+    mm = mmap(NULL, mem_window_size, PROT_WRITE|PROT_READ,
+              MAP_SHARED, mem_fd, mem_start & ~(pagesize-1));
+    mem = (char*)mm + (mem_start & (pagesize-1));
 
-  if (mm == MAP_FAILED) {
-    perror("mmap");
-    return NULL;
-  }
+    if (mm == MAP_FAILED) {
+        perror("mmap");
+        return NULL;
+    }
 
-  fprintf(stderr, "mmap 0x%lx -> %p\n",mem_start,mem);
-  return mem;
+    fprintf(stderr, "mmap 0x%lx -> %p\n",mem_start,mem);
+    return mem;
 }
+//------------------------------------------------------------------------------
 
-static uint32_t read_uint(const char *path) {
+static uint32_t read_uint(const char *path)
+{
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
         perror(path);
@@ -65,6 +72,7 @@ static uint32_t read_uint(const char *path) {
     log_wr(L_DEBUG, "read 0x%08x from %s\n", res, path);
     return res;
 }
+//------------------------------------------------------------------------------
 
 static void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 {
@@ -84,21 +92,21 @@ static void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
     }
     return map;
 }
+//------------------------------------------------------------------------------
 
-/* * */
+int hw_init()
+{
+    mem_open();
+    mm_ctrl = (volatile uint32_t *) mem_map(CTRL_ADDR, CTRL_SIZE);
+    mm_dma_ctl = (volatile uint32_t *) mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);
+    mm_dma_data = (volatile uint32_t *) alloc_dma_buf(&DMA_ADDR, &DMA_SIZE);
 
-int hw_init() {
-  mem_open();
-  mm_ctrl = (volatile uint32_t *) mem_map(CTRL_ADDR, CTRL_SIZE);
-  mm_dma_ctl = (volatile uint32_t *) mem_map(DMA_CTL_ADDR, DMA_CTL_SIZE);
-  mm_dma_data = (volatile uint32_t *) alloc_dma_buf(&DMA_ADDR, &DMA_SIZE);
+    /* init regs */
+    mm_ctrl[ZLOGAN_REG_CR] = ZLOGAN_CR_LA_RST | ZLOGAN_CR_DMAFSM_RST | ZLOGAN_CR_FIFO_RST;
+    mm_ctrl[ZLOGAN_REG_LEN] = 0;
+    __mb();
+    mm_ctrl[ZLOGAN_REG_CR] = 0x0; // disable
+    __mb();
 
-  /* init regs */
-  mm_ctrl[ZLOGAN_REG_CR] = ZLOGAN_CR_LA_RST | ZLOGAN_CR_DMAFSM_RST | ZLOGAN_CR_FIFO_RST;
-  mm_ctrl[ZLOGAN_REG_LEN] = 0;
-  __mb();
-  mm_ctrl[ZLOGAN_REG_CR] = 0x0; // disable
-  __mb();
-
-  return 0;
+    return 0;
 }
