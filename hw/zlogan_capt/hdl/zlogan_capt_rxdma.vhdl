@@ -24,7 +24,7 @@ entity zlogan_capt_rxdma is
     dma_trig, dma_reset: in std_logic;
     dma_len: in unsigned (29 downto 0);
     --
-    state_mon: out std_logic_vector (2 downto 0);
+    state_mon_o : out std_logic_vector (2 downto 0);
     count_mon_o : out unsigned (29 downto 0);
     --
     S2MM_tvalid : out std_logic;
@@ -48,6 +48,7 @@ architecture rtl of zlogan_capt_rxdma is
   signal ready_buf, xrun_flag_rg, dma_valid,
     nx_xrun_flag, nx_dma_valid: std_logic;
   signal dma_data, nx_dma_data: std_logic_vector (S2MM_TDATA_WIDTH-1 downto 0);
+  signal nx_state_mon : std_logic_vector (2 downto 0);
 begin
   ready <= ready_buf;
   xrun_flag <= xrun_flag_rg;
@@ -93,14 +94,14 @@ begin
     --
     case state is
       when ST_WAIT_TRIG =>
-        state_mon <= "001";
+        nx_state_mon <= "001";
         if dma_trig = '1' then
           nx_state <= ST_STAMP;
           nx_count <= dma_len;
         end if;
 
       when ST_STAMP =>
-        state_mon <= "010";
+        nx_state_mon <= "010";
         S2MM_tvalid <= '1';
         S2MM_tdata <= time_in;
         if count_lo = cnt_lo_zeros then
@@ -116,7 +117,7 @@ begin
         end if;
 
       when ST_DATA =>
-        state_mon <= "100";
+        nx_state_mon <= "100";
         if dma_valid = '1' then
           S2MM_tvalid <= '1';
           if count_lo = cnt_lo_zeros then
@@ -145,18 +146,19 @@ begin
 
   process
   begin
-    wait until clock'event and clock = '1';
+    wait until rising_edge(clock);
     count <= nx_count;
     dma_data <= nx_dma_data;
     dma_valid <= nx_dma_valid;
     xrun_flag_rg <= nx_xrun_flag;
+    state_mon_o <= nx_state_mon;
   end process;
 
   process (aresetn, clock)
   begin
     if aresetn = '0' or dma_reset = '1' then
       state <= ST_WAIT_TRIG;
-    elsif clock'event and clock = '1' then
+    elsif rising_edge(clock) then
       state <= nx_state;
     end if;
   end process;

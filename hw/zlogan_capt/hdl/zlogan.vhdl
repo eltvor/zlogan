@@ -195,7 +195,7 @@ begin
   --
   process
   begin
-    wait until clock'event and clock = '1';
+    wait until rising_edge(clock);
     time_cnt <= nx_time_cnt;
     prev_inp <= inp;
     prev_en <= en;
@@ -213,8 +213,8 @@ begin
   begin
     if reset = '1' then
       buf_len <= 0;
-    elsif clock'event and clock = '1' then
+    elsif rising_edge(clock) then
       buf_len <= nx_buf_len;
-    end if;                 
+    end if;
   end process;
 end rtl;
