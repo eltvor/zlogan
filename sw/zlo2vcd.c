@@ -8,12 +8,16 @@
  *   ./zlo2vcd < la.bin | sigrok-cli -I vcd -i /dev/stdin -o la.sr
  */
 
+#include "zlo.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include "zlo.h"
 #include <endian.h>
+#include <err.h>
 //------------------------------------------------------------------------------
+
+#define MIN(a, b) ((a)<(b) ? (a) : (b))
 
 void outp_vcd_sample(FILE *f, unsigned num_ch, uint64_t u)
 {
@@ -67,14 +71,20 @@ int main(int argc, char *argv[])
     (void) argv;
     unsigned num_ch, ws, count = 0;
     unsigned DMA_SZ_W;
-    size_t k;
+    size_t k, len;
 
     zlo_header_t hdr;
-    k = fread(&hdr, 1, sizeof(zlo_header_t), stdin);
-    if (k != sizeof(zlo_header_t)) {
-        fprintf(stderr, "Error: invalid input\n");
-        return 1;
-    }
+    k = fread(&hdr, 1, 4, stdin);
+    if (k != 4)
+        err(1, "Error: invalid input\n");
+    len = MIN(hdr.hdr_length, sizeof(zlo_header_t))-4;
+    k = fread((char*)&hdr+4, 1, len, stdin);
+    if (k != len)
+        err(1, "Error: invalid input\n");
+    if (hdr.hdr_length-len)
+        k = fread((char*)&hdr+4, 1, hdr.hdr_length-len, stdin);
+
+
     DMA_SZ_W = le32toh(hdr.burst_size_w);
     num_ch = hdr.nsignals;
     ws = hdr.word_size;

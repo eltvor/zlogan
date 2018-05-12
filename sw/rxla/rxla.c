@@ -12,6 +12,9 @@
  * Example:
  *   ./rxla -n $((16*1024*1024)) -o out.bin
  */
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,6 +31,8 @@
 #include "hw.h"
 #include "../zlo.h"
 #include <endian.h>
+#include <err.h>
+#include <stdbool.h>
 //------------------------------------------------------------------------------
 
 // TODO: detect the actual length
@@ -49,15 +54,12 @@ int set_rt_prio_self();
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof(a[0]))
 //------------------------------------------------------------------------------
 
-static struct {
-    long n;
-    int do_fwrite;
+typedef struct dma_setup_t {
+    size_t transfer_size_w;
     FILE *out;
-} dma_setup = {
-    .n = 0,
-    .do_fwrite = 1,
-    .out = NULL,
-};
+} dma_setup_t;
+
+volatile sig_atomic_t g_quit = 0;
 //------------------------------------------------------------------------------
 
 static inline void dma_reg_wr(unsigned reg, uint32_t val) {
@@ -84,7 +86,8 @@ static inline uint32_t dma_s2mm_reg_rd(unsigned reg) {
 }
 
 static inline void rx_dma_trigger(uint32_t dma_len) {
-    mm_ctrl[ZLOGAN_REG_LEN] = dma_len; // fill length & test flag
+    mm_ctrl[ZLOGAN_REG_LEN] = dma_len; // fill length
+    __mb();
     mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_DMAFSM_TRIG;
     __mb();
 }
@@ -99,9 +102,10 @@ static void dump_regs()
 {
     char buf[512];
     char *p = buf;
-    const char *names[] = {"CR", "SR", "LEN", "INP", "ID", "FIFO_DATA_COUNT",
-                           "FIFO_RD_DATA_COUNT", "FIFO_WR_DATA_COUNT",
-                           "SHADOW_LEN"};
+    static const char * const names[] = {
+        "CR", "SR", "LEN", "INP", "ID", "FIFO_DATA_COUNT",
+        "FIFO_RD_DATA_COUNT", "FIFO_WR_DATA_COUNT", "SHADOW_LEN"
+    };
 
     for (unsigned i=0; i<ARRAY_SIZE(names); ++i) {
         __mb();
@@ -112,24 +116,44 @@ static void dump_regs()
 }
 //------------------------------------------------------------------------------
 
-void *dma_thread(void *arg)
+void save_header(FILE *f, size_t burst_size_w, size_t transfer_size_w)
 {
-    (void) arg;
+    zlo_header_t hdr;
+    uint32_t id = mm_ctrl[ZLOGAN_REG_ID];
+
+    memset(&hdr, 0, sizeof(hdr));
+
+    hdr.ip_version = ZLOGAN_ID_GET_VER(id);
+    hdr.nsignals = ZLOGAN_ID_GET_NSIG(id);
+    hdr.word_size = WORD_SIZE;
+    hdr.hdr_length = sizeof(zlo_header_t);
+    hdr.burst_size_w = htole32(burst_size_w);
+    hdr.transfer_size_w = htole32(transfer_size_w);
+    fwrite(&hdr, 1, sizeof(zlo_header_t), f);
+}
+//------------------------------------------------------------------------------
+
+void save_data(FILE *f, const void *data, size_t size)
+{
+    fwrite(data, 1, size, f);
+}
+//------------------------------------------------------------------------------
+
+static void *dma_thread(void *arg)
+{
+    const dma_setup_t *dma_setup = (const dma_setup_t *) arg;
 
     uint32_t mem_addrp = DMA_ADDR;
     size_t block_len_w = DMA_MAX_LEN_W;
-    size_t total_len_w = dma_setup.n;
+    size_t total_len_w = dma_setup->transfer_size_w;
+    bool first = true;
 
-    if (total_len_w > DMA_SIZE/WORD_SIZE) {
-        log_wr(L_WARN, "small DMA buffer -> length truncated to %" PRIu32 " B",
-               DMA_SIZE);
-        total_len_w = DMA_SIZE/WORD_SIZE;
-    }
-    if (total_len_w < block_len_w)
-        block_len_w = total_len_w;
     set_rt_prio_self();
+
     log_wr(L_INFO, "total_len=%" PRIu32 ", block_len=%" PRIu32 "\n",
            total_len_w*WORD_SIZE, block_len_w*WORD_SIZE);
+
+    save_header(dma_setup->out, block_len_w, total_len_w);
 
     /* DMA reset */
     uint32_t tmp;
@@ -150,11 +174,29 @@ void *dma_thread(void *arg)
         usleep(1);
     log_wr(L_INFO, "DMA reset clear");
 
-    while (total_len_w) {
-        if (total_len_w < block_len_w)
-            block_len_w = total_len_w;
-        rx_dma_trigger(block_len_w-1); // fill length & test flag
+    /*
+     * The core will repeat transfers with the same length.
+     * The length is loaded into a shadow register on the beginning of
+     * the transfer, so we must setup the length of the last transfer
+     * immediately after starting the one before that.
+     */
+    while (total_len_w && !g_quit) {
+        if (total_len_w < 2*block_len_w) {
+            rx_dma_trigger(total_len_w - block_len_w - 1);
+        } else {
+            if (first)
+                rx_dma_trigger(block_len_w-1);
+            if (total_len_w < block_len_w) {
+                block_len_w = total_len_w;
+                rx_dma_untrigger();
+            }
+        }
+        first = false;
+
         log_wr(L_INFO, "DMA read loop: %" PRIu32 " bytes", block_len_w*WORD_SIZE);
+        tmp = mm_ctrl[ZLOGAN_REG_SR];
+        if (tmp & ZLOGAN_SR_XRUN)
+            log_wr(L_WARN, "FIFO Overrun. Some data will be missing.");
 
         /* prepare DMA engine */
         dma_s2mm_reg_wr(XILINX_DMA_REG_DMACR, XILINX_DMA_DMACR_RUNSTOP);  /* S2MM_DMACR.RS = 1 */
@@ -164,10 +206,9 @@ void *dma_thread(void *arg)
         //log_wr(L_DEBUG, "DMA: CR=0x%08x, ADDR=%");
 
         total_len_w -= block_len_w;
-        mem_addrp += block_len_w*WORD_SIZE;
 
         log_wr(L_INFO, "waiting for DMA ready");
-        while (1) {
+        while (!g_quit) {
             uint32_t sr = dma_s2mm_reg_rd(XILINX_DMA_REG_DMASR);
             if (sr & XILINX_DMA_DMASR_IDLE)
                 break;
@@ -176,24 +217,22 @@ void *dma_thread(void *arg)
                 dump_regs();
                 return NULL;
             }
-            usleep(1);
+            usleep(10);
         }
-    }
-    rx_dma_untrigger();
-    log_wr(L_INFO, "start=0x%08x, end=0x%08x\n", DMA_ADDR, mem_addrp);
-    tmp = mm_ctrl[ZLOGAN_REG_SR];
-    if (tmp & ZLOGAN_SR_XRUN) {
-        log_wr(L_WARN, "FIFO Overrun. Some data will be missing.");
-    }
-    if (dma_setup.do_fwrite) {
-        zlo_header_t hdr;
-        uint32_t id = mm_ctrl[ZLOGAN_REG_ID];
-        hdr.ip_version = ZLOGAN_ID_GET_VER(id);
-        hdr.nsignals = ZLOGAN_ID_GET_NSIG(id);
-        hdr.word_size = WORD_SIZE;
-        hdr.burst_size_w = htole32(dma_setup.n);
-        fwrite(&hdr, 1, sizeof(zlo_header_t), dma_setup.out);
-        fwrite((const void *)mm_dma_data, 1, mem_addrp-DMA_ADDR, dma_setup.out);
+        if (g_quit) {
+            /* TODO:
+             * - disable zlogan
+             * - zlogan will flush its output (also a TODO)
+             * - DMA transfer will fail (because the configured transfer size
+             *   does not match with received data burst length)
+             * - either read written data length from zlogan or detect it by
+             *   inspecting the transferred bytes
+             * - save only the transferred data
+             */
+            log_wr(L_INFO, "interrupted mid-burst");
+        }
+        log_wr(L_INFO, "writing %u bytes ...", block_len_w*WORD_SIZE);
+        save_data(dma_setup->out, (const void *) mm_dma_data, block_len_w*WORD_SIZE);
     }
     return NULL;
 }
@@ -223,36 +262,61 @@ int set_rt_prio_self()
 }
 //------------------------------------------------------------------------------
 
+void handle_exit(int sig)
+{
+    (void) sig;
+    g_quit = 1;
+}
+//------------------------------------------------------------------------------
+
 int main(int argc, char *argv[])
 {
     int ret = 0;
     int opt;
+    dma_setup_t dma_setup = {
+        .transfer_size_w = 0,
+        .out = stdout,
+    };
+
     log_stream_add(stderr);
     log_level(L_DEBUG);
 
-    dma_setup.out = stdout;
-
     optind = opterr = 0;
-    while ((opt = getopt(argc, argv, "n:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "n:o:hq")) != -1) {
         switch (opt) {
         case 'n':
-        dma_setup.n = strtoul(optarg, NULL, 0);
-        break;
+            dma_setup.transfer_size_w = strtoul(optarg, NULL, 0);
+            break;
         case 'o':
-        dma_setup.out = fopen(optarg, "w");
-        break;
+            dma_setup.out = fopen(optarg, "w");
+            break;
+        case 'q':
+            log_level(L_WARN);
+            break;
+        case 'h':
+            fprintf(stderr,
+"Zlogan data receiver\n"
+"\n"
+"Usage: %s [OPTIONS]\n"
+"Options:\n"
+"    -n transfer_length    Total length of bytes to transfer. Will be rounded\n"
+"                          up to Zlogan word size and minimal DMA transfer size.\n"
+"    -o filename           File to write the data into. Defaults to stdout.\n"
+"    -q                    Be less verbose (output level set to L_WARNING).\n"
+                   , argv[0]);
+            return 0;
         case ':':
-        fprintf(stderr, "command line option -%c requires an argument\n",
-                optopt);
-        return -1;
-        break;
+            fprintf(stderr, "command line option -%c requires an argument\n",
+                    optopt);
+            return -1;
+            break;
         case '?':
-        fprintf(stderr, "unrecognized command line option -%c\n",
-                optopt);
-        return -1;
-        break;
+            fprintf(stderr, "unrecognized command line option -%c\n",
+                    optopt);
+            return -1;
+            break;
         default:
-        break;
+            break;
         }
     }
 
@@ -270,15 +334,19 @@ int main(int argc, char *argv[])
         ret = 1;
         goto cleanup;
     }
-    if (dma_setup.n == 0)
-        dma_setup.n = DMA_MAX_LEN_B;
-    dma_setup.n /= WORD_SIZE;
+    if (dma_setup.transfer_size_w == 0)
+        dma_setup.transfer_size_w = DMA_MAX_LEN_B;
+    dma_setup.transfer_size_w /= WORD_SIZE;
 
-    /*
-    * prevent crashes on SIGPIPE
-    */
-    signal(SIGPIPE, SIG_IGN);
-    dma_thread(NULL);
+    struct sigaction sa = {0};
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = &handle_exit;
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGPIPE, &sa, NULL); // prevent crashes on SIGPIPE
+
+    dma_thread(&dma_setup);
 
 cleanup:
     fclose(dma_setup.out);

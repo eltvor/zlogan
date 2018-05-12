@@ -14,7 +14,7 @@
 volatile uint32_t *mm_ctrl, *mm_dma_ctl, *mm_dma_data;
 uint32_t DMA_ADDR, DMA_SIZE;
 
-static const char *memdev = "/dev/mem";
+static const char * const memdev = "/dev/mem";
 static int mem_fd = -1;
 //------------------------------------------------------------------------------
 
@@ -48,7 +48,7 @@ void *mem_map(unsigned long mem_start, unsigned long mem_length)
         return NULL;
     }
 
-    fprintf(stderr, "mmap 0x%lx -> %p\n",mem_start,mem);
+    log_wr(L_DEBUG, "mmap 0x%lx -> %p\n", mem_start, mem);
     return mem;
 }
 //------------------------------------------------------------------------------

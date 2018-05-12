@@ -12,7 +12,7 @@ $(EXENAME): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -MMD -MP -c $<
+	$(CC) $(CFLAGS) -std=c99 -MMD -MP -c $<
 
 clean:
 	rm -f $(OBJS) $(EXENAME) $(DEPS)
