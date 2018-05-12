@@ -82,6 +82,7 @@ static inline uint32_t dma_s2mm_reg_rd(unsigned reg) {
 }
 
 static inline void rx_dma_trigger(uint32_t dma_len) {
+    log_wr(L_DEBUG, "rx_dma_trigger(%u)", dma_len);
     mm_ctrl[ZLOGAN_REG_LEN] = dma_len; // fill length
     __mb();
     mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_DMAFSM_TRIG;
@@ -89,6 +90,7 @@ static inline void rx_dma_trigger(uint32_t dma_len) {
 }
 
 static inline void rx_dma_untrigger() {
+    log_wr(L_DEBUG, "rx_dma_untrigger()");
     mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_DMAFSM_TRIG;
     __mb();
 }
@@ -177,15 +179,20 @@ static void *dma_thread(void *arg)
      * immediately after starting the one before that.
      */
     while (total_len_w && !g_quit) {
-        if (total_len_w < 2*block_len_w) {
-            rx_dma_trigger(total_len_w - block_len_w - 1);
-        } else {
+        bool last = total_len_w <= block_len_w;
+        bool next_to_last = total_len_w <= 2*block_len_w;
+
+        if (last) {
+            block_len_w = total_len_w;
             if (first)
                 rx_dma_trigger(block_len_w-1);
-            if (total_len_w < block_len_w) {
-                block_len_w = total_len_w;
-                rx_dma_untrigger();
-            }
+            rx_dma_untrigger();
+        }
+        if (first && !last) {
+            rx_dma_trigger(block_len_w-1);
+        }
+        if (next_to_last) {
+            rx_dma_trigger(total_len_w - block_len_w - 1);
         }
         first = false;
 
