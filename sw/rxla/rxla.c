@@ -35,14 +35,10 @@
 #include <stdbool.h>
 //------------------------------------------------------------------------------
 
-// TODO: detect the actual length
-// NOTE: if the dump ends with a bunch of zeros (or some garbage), you got it wrong
-#define DMA_LENGTH_BITS    23
-
 unsigned WORD_SIZE = 0; // detected at runtime
 
-// NOTE: the DMA core has apparently some address alignment limitation (cache line?)
-#define DMA_MAX_LEN_W     (((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1) & ~0xFFF)
+// NOTE: the DMA core has apparently some address alignment limitation
+#define DMA_MAX_LEN_W     (((1U << DMA_LENGTH_BITS)/WORD_SIZE - 1) & ~0x0)
 #define DMA_MAX_LEN_B     (DMA_MAX_LEN_W*WORD_SIZE)
 /*
 #define DMA_MAX_LEN_W     ((1U << (DMA_LENGTH_BITS-1))/WORD_SIZE)
@@ -323,9 +319,6 @@ int main(int argc, char *argv[])
     hw_init();
     mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_LA_RST; __mb(); // zlogan reset
     mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_LA_RST; __mb();
-    mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_EN; __mb(); // zlogan enable
-
-    mlockall(MCL_CURRENT | MCL_FUTURE);
 
     uint32_t id = mm_ctrl[ZLOGAN_REG_ID];
     WORD_SIZE = ZLOGAN_ID_GET_WS(id);
@@ -338,6 +331,9 @@ int main(int argc, char *argv[])
         dma_setup.transfer_size_w = DMA_MAX_LEN_B;
     dma_setup.transfer_size_w /= WORD_SIZE;
 
+    if (DMA_SIZE < WORD_SIZE*8)
+        err(1, "DMA buffer too small: at least %u bytes required, got %u", WORD_SIZE*8, DMA_SIZE);
+
     struct sigaction sa = {0};
     sigemptyset(&sa.sa_mask);
     sa.sa_handler = &handle_exit;
@@ -346,8 +342,11 @@ int main(int argc, char *argv[])
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGPIPE, &sa, NULL); // prevent crashes on SIGPIPE
 
-    dma_thread(&dma_setup);
+    mlockall(MCL_CURRENT | MCL_FUTURE);
 
+    mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_EN; __mb(); // zlogan enable
+
+    dma_thread(&dma_setup);
 cleanup:
     fclose(dma_setup.out);
     return ret;

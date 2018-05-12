@@ -76,13 +76,18 @@ static uint32_t read_uint(const char *path)
 
 static void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 {
+#define XSTR(a) #a
+#define STR(a) XSTR(a)
+#define DEV "/dev/udmabuf" STR(UDMABUF_NUM)
+#define SYS "/sys/class/udmabuf/udmabuf" STR(UDMABUF_NUM)
+
     int fd = open("/dev/udmabuf0", O_RDONLY);
     if (fd < 0) {
         perror("/dev/udmabuf0");
         return NULL;
     }
-    *phys_addr = read_uint("/sys/class/udmabuf/udmabuf0/phys_addr");
-    *size = read_uint("/sys/class/udmabuf/udmabuf0/size");
+    *phys_addr = read_uint(SYS "/phys_addr");
+    *size = read_uint(SYS "/size");
     void *map = mmap(NULL, *size, PROT_READ, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         perror("mmap");

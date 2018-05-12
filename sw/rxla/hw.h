@@ -1,11 +1,7 @@
 #ifndef _ZLOGAN_HW_H_
 #define _ZLOGAN_HW_H_
 
-#define CTRL_ADDR    0x43c20000
-#define CTRL_SIZE          0x20
-#define DMA_CTL_ADDR 0x40400000
-#define DMA_CTL_SIZE       0x62
-
+#include "hw_config.h"
 extern uint32_t DMA_ADDR, DMA_SIZE;
 
 //#define SIG_BASE 0x10
