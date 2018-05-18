@@ -142,7 +142,7 @@ architecture arch_imp of zlogan_capt_v1_0 is
       dma_trig, dma_reset: in std_logic;
       dma_len: in unsigned (29 downto 0);
       --
-      state_mon: out std_logic_vector (2 downto 0);
+      state_mon_o : out std_logic_vector (2 downto 0);
       count_mon_o : out unsigned (29 downto 0);
       --
       S2MM_tvalid : out std_logic;
@@ -237,7 +237,7 @@ zlogan_capt_s00_axi_inst : zlogan_capt_s00_axi
     dma_trig => dma_trig,
     dma_reset => dma_rst,
     dma_len => dma_len,
-    state_mon => state_mon,
+    state_mon_o => state_mon,
     count_mon_o => count_mon,
     S2MM_tvalid => m00_axis_tvalid,
     S2MM_tready => m00_axis_tready,
