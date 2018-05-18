@@ -77,12 +77,13 @@ int main(int argc, char *argv[])
     k = fread(&hdr, 1, 4, stdin);
     if (k != 4)
         err(1, "Error: invalid input\n");
-    len = MIN(hdr.hdr_length, sizeof(zlo_header_t))-4;
+    int hdrlen = hdr.hdr_length == 0 ? 8 : hdr.hdr_length;
+    len = MIN(hdrlen, sizeof(zlo_header_t))-4;
     k = fread((char*)&hdr+4, 1, len, stdin);
     if (k != len)
         err(1, "Error: invalid input\n");
-    if (hdr.hdr_length-len)
-        k = fread((char*)&hdr+4, 1, hdr.hdr_length-len, stdin);
+    if (hdrlen-len)
+        fseek(stdin, hdrlen-len, SEEK_CUR);
 
 
     DMA_SZ_W = le32toh(hdr.burst_size_w);
