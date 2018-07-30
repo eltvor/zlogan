@@ -18,7 +18,7 @@
 #define L_INFO  4
 #define L_DEBUG 5
 
-static const char *log_label[] = {
+static const char * const log_label[] = {
   "fatal",
   "error",
   "warning",
@@ -28,7 +28,7 @@ static const char *log_label[] = {
 };
 
 #ifdef LOG_SYSLOG
-static int syslog_lvl[] = {
+static const int syslog_lvl[] = {
   LOG_EMERG,
   LOG_ERR,
   LOG_WARNING,

@@ -36,9 +36,12 @@ void outp_vcd_sample(FILE *f, unsigned num_ch, uint64_t u)
         fprintf(f, "#%llu", t);
         for (k = 0; k < num_ch; k++, x >>= 1, last_x >>= 1) {
             if ((x ^ last_x) & 0x1) {
-                fputc(' ', f);
-                fputc('0' + (x&0x1), f);
-                fputc('A' + k, f);
+                char buf[3] = {
+                    ' ',
+                    '0' + (x&0x1),
+                    'A' + k
+                };
+                fwrite(buf, 1, sizeof(buf), f)
             }
         }
         fputc('\n', f);
