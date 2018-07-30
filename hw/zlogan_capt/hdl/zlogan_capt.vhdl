@@ -33,7 +33,7 @@ entity zlogan_capt_v1_0 is
     C_M00_AXIS_START_COUNT  : integer  := 32
   );
   port (
-    la_clock: in std_logic;
+    --la_clock: in std_logic; <= aclk
     la_inp: in std_logic_vector (la_n_inp-1 downto 0);
 
     fifo_data_count_i : in std_logic_vector(31 downto 0);
@@ -41,6 +41,8 @@ entity zlogan_capt_v1_0 is
     fifo_rd_data_count_i : in std_logic_vector(31 downto 0);
 
     fifo_reset_n : out std_logic;
+
+    timestamp            : in  std_logic_vector(C_M00_AXIS_TDATA_WIDTH-1 downto 0);
 
     -- Ports of APB Interface
     aclk                 : in  std_logic;
@@ -162,7 +164,10 @@ architecture arch_imp of zlogan_capt_v1_0 is
   signal state_mon: std_logic_vector (2 downto 0);
   signal reg_enable : std_logic;
   signal la_reset : std_logic;
+  signal la_clock : std_logic;
 begin
+  la_clock <= aclk;
+
   -- Instantiation of APB Interface
   zlogan_apb_capt_inst: zlogan_capt_apb
   generic map (
@@ -240,8 +245,7 @@ zlogan0: zlogan
     out_data    => dma_data
   );
 
-  -- TODO: generate timestamp
-  dma_tstamp <= (others => '0');
+  dma_tstamp <= timestamp;
 
   -- User logic ends
 
