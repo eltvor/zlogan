@@ -68,6 +68,8 @@ architecture rtl of zlogan_capt_apb is
     signal slv_reg8  : std_logic_vector(31 downto 0);
 
     signal reg_addr  : std_logic_vector(7 downto 0);
+    signal apb_prdata_reg         : std_logic_vector(31 downto 0);
+    signal apb_pslverr_reg        : std_logic;
 
     function apply_be(constant reg      : in  std_logic_vector(31 downto 0);
                       constant wrsignal : in  std_logic_vector(31 downto 0);
@@ -78,16 +80,22 @@ architecture rtl of zlogan_capt_apb is
         res := reg;
         for i in be'range loop
             if be(i) = '1' then
-                res((i+1)*8 downto i*8) := wrsignal((i+1)*8 downto i*8);
+                res((i+1)*8-1 downto i*8) := wrsignal((i+1)*8-1 downto i*8);
             end if;
         end loop;
         return res;
     end function apply_be;
 begin
+    s_apb_prdata  <= apb_prdata_reg;
+    s_apb_pslverr <= apb_pslverr_reg;
+    s_apb_pready  <= '1';
+
+    apb_pslverr_reg <= '0';
+
     -- aligned
     reg_addr <= s_apb_paddr(reg_addr'left+2 downto 2);
 
-    p:process(aclk, arstn)
+    p_write:process(aclk, arstn)
     begin
         if arstn = '0' then
             slv_reg0 <= (others => '0');
@@ -100,34 +108,53 @@ begin
             --slv_reg7 <= (others => '0');
             --slv_reg8 <= (others => '0');
         elsif rising_edge(aclk) then
-            if s_apb_psel = '1' and s_apb_penable = '1' then
-                if s_apb_pwrite = '1' then
-                    case reg_addr is
-                        when x"00" => slv_reg0 <= apply_be(slv_reg0, s_apb_pwdata, s_apb_pstrb);
-                        --when x"01" => slv_reg1 <= apply_be(slv_reg1, s_apb_pwdata, s_apb_pstrb);
-                        when x"02" => slv_reg2 <= apply_be(slv_reg2, s_apb_pwdata, s_apb_pstrb);
-                        --when x"03" => slv_reg3 <= apply_be(slv_reg3, s_apb_pwdata, s_apb_pstrb);
-                        --when x"04" => slv_reg4 <= apply_be(slv_reg4, s_apb_pwdata, s_apb_pstrb);
-                        --when x"05" => slv_reg5 <= apply_be(slv_reg5, s_apb_pwdata, s_apb_pstrb);
-                        --when x"06" => slv_reg6 <= apply_be(slv_reg6, s_apb_pwdata, s_apb_pstrb);
-                        --when x"07" => slv_reg7 <= apply_be(slv_reg7, s_apb_pwdata, s_apb_pstrb);
-                        --when x"08" => slv_reg8 <= apply_be(slv_reg8, s_apb_pwdata, s_apb_pstrb);
-                        --others =>  --set error?
-                    end case;
-                else
-                    case reg_addr is
-                        when x"00" => s_apb_prdata <= slv_reg0;
-                        when x"01" => s_apb_prdata <= slv_reg1;
-                        when x"02" => s_apb_prdata <= slv_reg2;
-                        when x"03" => s_apb_prdata <= slv_reg3;
-                        when x"04" => s_apb_prdata <= slv_reg4;
-                        when x"05" => s_apb_prdata <= slv_reg5;
-                        when x"06" => s_apb_prdata <= slv_reg6;
-                        when x"07" => s_apb_prdata <= slv_reg7;
-                        when x"08" => s_apb_prdata <= slv_reg8;
-                        when others=> s_apb_prdata <= (others => '0'); --set error?
-                    end case;
-                end if;
+            if s_apb_psel = '1' and s_apb_penable = '1' and s_apb_pwrite = '1' then
+                case reg_addr is
+                    when x"00" => slv_reg0 <= apply_be(slv_reg0, s_apb_pwdata, s_apb_pstrb);
+                    --when x"01" => slv_reg1 <= apply_be(slv_reg1, s_apb_pwdata, s_apb_pstrb);
+                    when x"02" => slv_reg2 <= apply_be(slv_reg2, s_apb_pwdata, s_apb_pstrb);
+                    --when x"03" => slv_reg3 <= apply_be(slv_reg3, s_apb_pwdata, s_apb_pstrb);
+                    --when x"04" => slv_reg4 <= apply_be(slv_reg4, s_apb_pwdata, s_apb_pstrb);
+                    --when x"05" => slv_reg5 <= apply_be(slv_reg5, s_apb_pwdata, s_apb_pstrb);
+                    --when x"06" => slv_reg6 <= apply_be(slv_reg6, s_apb_pwdata, s_apb_pstrb);
+                    --when x"07" => slv_reg7 <= apply_be(slv_reg7, s_apb_pwdata, s_apb_pstrb);
+                    --when x"08" => slv_reg8 <= apply_be(slv_reg8, s_apb_pwdata, s_apb_pstrb);
+                    when others =>  --set error?
+                end case;
+            else
+                slv_reg0 <= slv_reg0;
+                --slv_reg1 <= slv_reg1;
+                slv_reg2 <= slv_reg2;
+                --slv_reg3 <= slv_reg3;
+                --slv_reg4 <= slv_reg4;
+                --slv_reg5 <= slv_reg5;
+                --slv_reg6 <= slv_reg6;
+                --slv_reg7 <= slv_reg7;
+                --slv_reg8 <= slv_reg8;
+            end if;
+        end if;
+    end process;
+
+    p_read:process(aclk, arstn)
+    begin
+        if arstn = '0' then
+            apb_prdata_reg <= (others => '0');
+        elsif rising_edge(aclk) then
+            if s_apb_psel = '1' and s_apb_penable = '1' and s_apb_pwrite = '0' then
+                case reg_addr is
+                    when x"00" => apb_prdata_reg <= slv_reg0;
+                    when x"01" => apb_prdata_reg <= slv_reg1;
+                    when x"02" => apb_prdata_reg <= slv_reg2;
+                    when x"03" => apb_prdata_reg <= slv_reg3;
+                    when x"04" => apb_prdata_reg <= slv_reg4;
+                    when x"05" => apb_prdata_reg <= slv_reg5;
+                    when x"06" => apb_prdata_reg <= slv_reg6;
+                    when x"07" => apb_prdata_reg <= slv_reg7;
+                    when x"08" => apb_prdata_reg <= slv_reg8;
+                    when others=> apb_prdata_reg <= (others => '0'); --set error?
+                end case;
+            else
+                apb_prdata_reg <= apb_prdata_reg;
             end if;
         end if;
     end process;
