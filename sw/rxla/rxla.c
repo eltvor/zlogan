@@ -96,15 +96,20 @@ static inline void rx_dma_untrigger() {
 }
 //------------------------------------------------------------------------------
 
-static inline zlogan_enable() {
+static inline void zlogan_enable() {
     mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_EN;
     __mb();
 }
 //------------------------------------------------------------------------------
 
-static inline zlogan_disable() {
+static inline void zlogan_disable() {
     mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_EN;
     __mb();
+}
+//------------------------------------------------------------------------------
+
+static inline uint32_t zlogan_read_reg(uint32_t reg) {
+    return mm_ctrl[reg];
 }
 //------------------------------------------------------------------------------
 
