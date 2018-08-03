@@ -108,7 +108,7 @@ begin
             --slv_reg7 <= (others => '0');
             --slv_reg8 <= (others => '0');
         elsif rising_edge(aclk) then
-            if s_apb_psel = '1' and s_apb_penable = '1' and s_apb_pwrite = '1' then
+            if s_apb_psel = '1' and s_apb_penable = '0' and s_apb_pwrite = '1' then
                 case reg_addr is
                     when x"00" => slv_reg0 <= apply_be(slv_reg0, s_apb_pwdata, s_apb_pstrb);
                     --when x"01" => slv_reg1 <= apply_be(slv_reg1, s_apb_pwdata, s_apb_pstrb);
@@ -140,7 +140,7 @@ begin
         if arstn = '0' then
             apb_prdata_reg <= (others => '0');
         elsif rising_edge(aclk) then
-            if s_apb_psel = '1' and s_apb_penable = '1' and s_apb_pwrite = '0' then
+            if s_apb_psel = '1' and s_apb_penable = '0' and s_apb_pwrite = '0' then
                 case reg_addr is
                     when x"00" => apb_prdata_reg <= slv_reg0;
                     when x"01" => apb_prdata_reg <= slv_reg1;
