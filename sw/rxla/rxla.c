@@ -96,6 +96,18 @@ static inline void rx_dma_untrigger() {
 }
 //------------------------------------------------------------------------------
 
+static inline zlogan_enable() {
+    mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_EN;
+    __mb();
+}
+//------------------------------------------------------------------------------
+
+static inline zlogan_disable() {
+    mm_ctrl[ZLOGAN_REG_CR] &= ~ZLOGAN_CR_EN;
+    __mb();
+}
+//------------------------------------------------------------------------------
+
 static void dump_regs()
 {
     char buf[512];
@@ -223,16 +235,33 @@ static void *dma_thread(void *arg)
             usleep(10);
         }
         if (g_quit) {
-            /* TODO:
+            /*
              * - disable zlogan
-             * - zlogan will flush its output (also a TODO)
+             * - zlogan will flush its output
              * - DMA transfer will fail (because the configured transfer size
              *   does not match with received data burst length)
              * - either read written data length from zlogan or detect it by
              *   inspecting the transferred bytes
              * - save only the transferred data
              */
-            log_wr(L_INFO, "interrupted mid-burst");
+            uint32_t len, shadow_len;
+            bool ok = false;
+            log_wr(L_INFO, "interrupted mid-burst, tearing down ...");
+            zlogan_disable();
+            for (int i=0; i<1000; ++i) {
+                uint32_t sr = dma_s2mm_reg_rd(XILINX_DMA_REG_DMASR);
+                if (sr & (XILINX_DMA_DMASR_IDLE | XILINX_DMA_DMASR_HALTED)) {
+                    ok = true;
+                    break;
+                }
+                usleep(100);
+            }
+            if (!ok)
+                log_wr(L_WARN, "DMA did not finish in time, giving up");
+            len = zlogan_read_reg(ZLOGAN_REG_LEN);
+            shadow_len = zlogan_read_reg(ZLOGAN_REG_SHADOW_LEN);
+
+            block_len_w = len - shadow_len;
         }
         log_wr(L_INFO, "writing %u bytes ...", block_len_w*WORD_SIZE);
         save_data(dma_setup->out, (const void *) mm_dma_data, block_len_w*WORD_SIZE);
@@ -351,7 +380,7 @@ int main(int argc, char *argv[])
 
     mlockall(MCL_CURRENT | MCL_FUTURE);
 
-    mm_ctrl[ZLOGAN_REG_CR] |= ZLOGAN_CR_EN; __mb(); // zlogan enable
+    zlogan_enable();
 
     dma_thread(&dma_setup);
 cleanup:
