@@ -109,6 +109,7 @@ begin
     S2MM_tdata <= dma_data;
     S2MM_tstrb <= (others => '1');
     count_mon_o <= count;
+    nx_state_mon <= "000"; -- invalid state
     --
     case state is
       when ST_WAIT_TRIG =>
