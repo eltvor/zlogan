@@ -74,7 +74,8 @@ begin
   count_hi <= count(29 downto 20);
   
   buf: process (dma_data, dma_valid, dma_reset, xrun_flag_rg,
-                state, ready_buf, data_in, S2MM_tready)
+                state, ready_buf, data_in, S2MM_tready, valid, time_in,
+                dma_reset)
   begin
     nx_dma_data <= dma_data;
     nx_dma_valid <= dma_valid;
@@ -100,7 +101,7 @@ begin
   end process;
 
   fsm: process (state, count, count_lo, count_hi, dma_trig, dma_data, dma_len,
-                dma_valid, S2MM_tready)
+                dma_valid, S2MM_tready, time_in, dma_reset)
   begin
     S2MM_tvalid <= '0';
     S2MM_tlast <= '0';

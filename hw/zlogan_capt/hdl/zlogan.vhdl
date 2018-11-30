@@ -201,7 +201,6 @@ begin
     prev_en <= en;
     buf <= nx_buf;
     inp_len <= nx_inp_len;
-    time_cnt <= nx_time_cnt;
     inp1 <= nx_inp1;
     inp1_valid <= nx_inp1_valid;
     inp_word <= nx_inp_word;
