@@ -197,7 +197,7 @@ static void *dma_thread(void *arg)
      */
     while (total_len_w && !g_quit) {
         bool last = total_len_w <= block_len_w;
-        bool next_to_last = total_len_w <= 2*block_len_w;
+        bool next_to_last = total_len_w <= 2*block_len_w && !last;
 
         if (last) {
             block_len_w = total_len_w;
