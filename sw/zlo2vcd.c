@@ -41,7 +41,7 @@ void outp_vcd_sample(FILE *f, unsigned num_ch, uint64_t u)
                     '0' + (x&0x1),
                     'A' + k
                 };
-                fwrite(buf, 1, sizeof(buf), f)
+                fwrite(buf, 1, sizeof(buf), f);
             }
         }
         fputc('\n', f);
