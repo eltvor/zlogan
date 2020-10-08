@@ -79,7 +79,7 @@ static void* alloc_dma_buf(uint32_t *phys_addr, uint32_t *size)
 #define XSTR(a) #a
 #define STR(a) XSTR(a)
 #define DEV "/dev/udmabuf" STR(UDMABUF_NUM)
-#define SYS "/sys/class/udmabuf/udmabuf" STR(UDMABUF_NUM)
+#define SYS "/sys/class/u-dma-buf/udmabuf" STR(UDMABUF_NUM)
 
     int fd = open("/dev/udmabuf0", O_RDONLY);
     if (fd < 0) {
